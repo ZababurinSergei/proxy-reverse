@@ -75,5 +75,8 @@
   },
   "devDependencies": {
     "netlify-cli": "^16.0.3"
+  },
+  "engines" : {
+    "node" : ">=14.21.2 <20.0.0"
   }
 }
