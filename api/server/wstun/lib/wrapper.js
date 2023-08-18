@@ -24,9 +24,7 @@
     server: require("./server"),
     client: require("./client"),
     server_reverse : require("./server_reverse"),
-    client_reverse : require("./client_reverse"),
-    server_reverse_lambda : require("./server_reverse-lambda"),
-    client_reverse_lambda : require("./client_reverse-lambda")
+    client_reverse : require("./client_reverse")
   };
 }).call(this);
 
