@@ -1,0 +1,423 @@
+//###############################################################################
+//##
+//# Copyright (C) 2014-2015 Andrea Rocco Lotronto, 2017 Nicola Peditto
+//##
+//# Licensed under the Apache License, Version 2.0 (the "License");
+//# you may not use this file except in compliance with the License.
+//# You may obtain a copy of the License at
+//##
+//# http://www.apache.org/licenses/LICENSE-2.0
+//##
+//# Unless required by applicable law or agreed to in writing, software
+//# distributed under the License is distributed on an "AS IS" BASIS,
+//# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//# See the License for the specific language governing permissions and
+//# limitations under the License.
+//##
+//###############################################################################
+var WebSocketServer, bindSockets, http, net, url, wst_server_reverse;
+var httpProxy = require('http-proxy');
+let proxy = httpProxy.createProxyServer({});
+WebSocketServer = require('websocket').server;
+const serverless = require('serverless-http');
+http = require('http');
+url = require("url");
+net = require("net");
+bindSockets = require("./bindSockets_reverse");
+let allow_list_file = undefinedWebSocketServer = require('websocket').server;
+const Ably = require('ably/promises');
+uuid = require('node-uuid');
+let isReversePort = false
+console.log("WSTUN STARTED!");
+
+https_flag = null;
+
+var allow_list; 
+
+var eventEmitter = require('events').EventEmitter;
+eventEmitter.prototype._maxListeners = 1000;
+
+var newWSTCP_DATA = new eventEmitter();
+
+const optionalClientId = 'mCWdHA.ttJ1BA:Gm7qL08ea0E8XFuY4CkAwxJZGaI2JuHKR56azpB3SGU'; // When not provided in authUrl, a default will be used.
+const ably = new Ably.Realtime(optionalClientId);
+const channel = ably.channels.get('proxy-reverse');
+
+
+wst_server_reverse = function(event, context, options = undefined) {
+
+  if(options != undefined) {
+
+    console.log("[SYSTEM] - WS Reverse Tunnel Server starting with these paramters:\n" + JSON.stringify(options, null, "\t"));
+    this.dstHost = options.dstHost;
+    this.dstPort = options.dstPort;
+
+    https_flag = options.ssl;
+    allow_list_file = options.allow;
+    
+    // console.log("allow_list_file: " + allow_list_file);
+
+  } else {
+      console.log("[SYSTEM] - WS Reverse Tunnel Server starting...");
+  }
+
+
+
+  if(https_flag == "true") {
+    
+    //HTTPS
+    console.log("[SYSTEM] - WS Reverse Tunnel Server over HTTPS.");
+    var https = require('https');
+    var fs = require('fs');
+
+    require("../lib/https_override"); //add parameters overriding each https request
+    
+    https_flag = options.ssl;
+
+    try{
+      // certificates loading from file
+      this.s4t_key = fs.readFileSync(options.key, 'utf8');
+      this.s4t_cert = fs.readFileSync(options.cert, 'utf8');
+      
+    }catch (err) {
+      // handle the error safely
+      console.log("[SYSTEM] --> ERROR: " + err);
+      process.exit(1);
+
+    }
+
+    var credentials = {
+      key: this.s4t_key,
+      cert: this.s4t_cert
+    };
+
+    this.httpServer = https.createServer(credentials, function(request, response) {
+        if(!isReversePort) {
+            response.writeHead(200, {"Content-Type": "text/html"});
+            response.write("<!DOCTYPE 'html'>");
+            response.write("<html>");
+            response.write("<head>");
+            response.write("<title>Portal</title>");
+            response.write("<link rel=\"shortcut icon\" href=\"data:image/png;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbv+DGW3/mRlt/5kZbf+ZGq6/hIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGa3/ohkt/7/Zbj//2S3/v9lt/6WAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGm5/iRlt/74Zbj//2W4//9luP//Zbf++mi4/i4gIPciGhr24hsb9uwbG/bsGhr24CEh9xoAAAAAAAAAAAAAAABnuP5mZLf+/2W4//9luP//Zbj//2S3/v9muP5yGBj2rhMT9v8TE/b/ExP2/xMT9f8YGPWkAAAAAAAAAAAAAAAAb7z/BGW3/tZluP//Zbj//2W4//9lt/7gJzH3ShMT9f8TE/b/ExP2/xMT9v8TE/b/ExP1/CAg9joAAAAAAAAAAAAAAABmuP5GZLf+6GS3/uhkt/7oZbf+UhgY9YQSEvX/ExP2/xMT9v8TE/b/ExP2/xIS9f8aGvZ8AAAAAD4++gQgIPZ6IiL2hiIi9oYgIPZ8KCj5BAAAAAAtLfgUFBT17BMT9v8TE/b/ExP2/xMT9v8VFfXoLCz4DgAAAAAaGvZqEhL1/xMT9v8TE/b/EhL1/xsb9nIAAAAAAAAAABwc9m4SEvX/ExP2/xMT9v8SEvX/HR32ZAAAAAAnJ/gSFRX16hMT9v8TE/b/ExP2/xMT9v8UFPXuJyf4Fp2xlAKNnqUYLC/mfhYW83ATE/VuFxf1aDc3+gIAAAAAGBj1fhIS9f8TE/b/ExP2/xMT9v8TE/b/ExP1/xkZ9YaGn3yIhZ57/4Wee/+Gn3yKAAAAAAAAAAAAAAAAAAAAACMj9zYTE/X8ExP2/xMT9v8TE/b/ExP2/xMT9f9JUshihZ57+IaffP+Gn3z/hZ579oigfiYAAAAAAAAAAAAAAAAAAAAAGBj1oBIS9f8TE/b/ExP2/xMT9f8YGPWmiKB+PIWee/+Gn3z/hp98/4Wee/+HoH06AAAAAAAAAAAAAAAAAAAAACUl9xgVFfXOExP11BMT9dQUFPXQJib3HgAAAACGn3ymhp98/4affP+Gn3ymAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAiKB+EIihf0CIoX9AiKB+EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAP//AADg/wAA4MMAAOCBAADggQAA8QEAAOeBAADDwwAAgf8AAIAPAACBDwAAgQ8AAMMPAAD//wAA//8AAA==\"  type=\"image/png\">");
+            response.write("</head>");
+            response.write("<body>");
+            response.write(`<div>
+                     <fieldset>
+                           <legend>Empty</legend>
+                           <img href="https://i.imgur.com/xeqHFPH.jpg" src="https://i.imgur.com/xeqHFPH.jpg"/>
+                     <span>Await client connections...</span>   
+                     </fieldset>
+                     
+                     </div>`);
+            response.write("</body>");
+            response.write("<style>");
+            response.write("fieldset {" +
+                    "display: flex;" +
+                    "flex-direction: column;" +
+                    "border-radius: 50%;" +
+                    "width: 20vw;" +
+                    "height: 20vw;" +
+                    "justify-content: center;" +
+                    "margin: auto;" +
+                "} " +
+                "img {" +
+                    "width: 40%;" +
+                    "align-self: center;" +
+                "} " +
+                "span {" +
+                " text-align: center;" +
+                " padding: 1vw;" +
+                " font-size: 2vw;" +
+                "}" +
+                "");
+            response.write("</style>");
+            response.write("</html>");
+            response.end();
+        } else {
+            proxy.web(request, response,{target: `http://127.0.0.1:5005`})
+        }
+
+    });
+    
+
+  } else {
+    console.log("[SYSTEM] - WS Reverse Tunnel Server over HTTP.");
+
+    const props = function(request, response) {
+        //console.log(request, response);
+        //response.writeHead(404);
+        //return response.end();
+        console.log('SSSSSSSSSSS isReversePort SSSSSSSSSSSSSss', isReversePort)
+        if(!isReversePort) {
+            response.writeHead(200, {"Content-Type": "text/html"});
+            response.write("<!DOCTYPE 'html'>");
+            response.write("<html>");
+            response.write("<head>");
+            response.write("<title>Portal</title>");
+            response.write("<link rel=\"shortcut icon\" href=\"data:image/png;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbv+DGW3/mRlt/5kZbf+ZGq6/hIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGa3/ohkt/7/Zbj//2S3/v9lt/6WAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGm5/iRlt/74Zbj//2W4//9luP//Zbf++mi4/i4gIPciGhr24hsb9uwbG/bsGhr24CEh9xoAAAAAAAAAAAAAAABnuP5mZLf+/2W4//9luP//Zbj//2S3/v9muP5yGBj2rhMT9v8TE/b/ExP2/xMT9f8YGPWkAAAAAAAAAAAAAAAAb7z/BGW3/tZluP//Zbj//2W4//9lt/7gJzH3ShMT9f8TE/b/ExP2/xMT9v8TE/b/ExP1/CAg9joAAAAAAAAAAAAAAABmuP5GZLf+6GS3/uhkt/7oZbf+UhgY9YQSEvX/ExP2/xMT9v8TE/b/ExP2/xIS9f8aGvZ8AAAAAD4++gQgIPZ6IiL2hiIi9oYgIPZ8KCj5BAAAAAAtLfgUFBT17BMT9v8TE/b/ExP2/xMT9v8VFfXoLCz4DgAAAAAaGvZqEhL1/xMT9v8TE/b/EhL1/xsb9nIAAAAAAAAAABwc9m4SEvX/ExP2/xMT9v8SEvX/HR32ZAAAAAAnJ/gSFRX16hMT9v8TE/b/ExP2/xMT9v8UFPXuJyf4Fp2xlAKNnqUYLC/mfhYW83ATE/VuFxf1aDc3+gIAAAAAGBj1fhIS9f8TE/b/ExP2/xMT9v8TE/b/ExP1/xkZ9YaGn3yIhZ57/4Wee/+Gn3yKAAAAAAAAAAAAAAAAAAAAACMj9zYTE/X8ExP2/xMT9v8TE/b/ExP2/xMT9f9JUshihZ57+IaffP+Gn3z/hZ579oigfiYAAAAAAAAAAAAAAAAAAAAAGBj1oBIS9f8TE/b/ExP2/xMT9f8YGPWmiKB+PIWee/+Gn3z/hp98/4Wee/+HoH06AAAAAAAAAAAAAAAAAAAAACUl9xgVFfXOExP11BMT9dQUFPXQJib3HgAAAACGn3ymhp98/4affP+Gn3ymAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAiKB+EIihf0CIoX9AiKB+EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAP//AADg/wAA4MMAAOCBAADggQAA8QEAAOeBAADDwwAAgf8AAIAPAACBDwAAgQ8AAMMPAAD//wAA//8AAA==\"  type=\"image/png\">");
+            response.write("</head>");
+            response.write("<body>");
+            response.write(`<div>
+                     <fieldset>
+                           <legend>Empty</legend>
+                           <img href="https://i.imgur.com/xeqHFPH.jpg" src="https://i.imgur.com/xeqHFPH.jpg"/>
+                     <span>Await client connections...</span>   
+                     </fieldset>
+                     </div>`);
+            response.write("</body>");
+            response.write("<style>");
+            response.write("fieldset {" +
+                "display: flex;" +
+                "flex-direction: column;" +
+                "border-radius: 50%;" +
+                "width: 20vw;" +
+                "height: 20vw;" +
+                "justify-content: center;" +
+                "margin: auto;" +
+                "} " +
+                "img {" +
+                "width: 40%;" +
+                "align-self: center;" +
+                "} " +
+                "span {" +
+                " text-align: center;" +
+                " padding: 1vw;" +
+                " font-size: 2vw;" +
+                "}" +
+                "");
+            response.write("</style>");
+            response.write("</html>");
+            response.end();
+        } else {
+            console.log('SSSSSSSSSSSSSSSSSSSSSSSSss')
+            proxy.web(request, response,{target: `http://127.0.0.1:5005`})
+        }
+    }
+
+    this.httpServer = http.createServer();
+
+    // console.log('dddddddddddddddddddddddddddd', context)
+    serverless(this.httpServer);
+
+
+    // or as a promise
+    // const handler = serverless(this.httpServer);
+    // module.exports.handler = async (event, context) => {
+        // you can do other things here
+        //
+        // const result = await handler(event, context);
+        // and here
+
+        // console.log('@@@@@@@@@@@@@@@@@ !!!!!! @@@@@@@@@@@@@@@@@@@@@@@@')
+
+        // return result;
+    // };
+  }
+
+    // const optionalClientId = "mCWdHA.ttJ1BA:Gm7qL08ea0E8XFuY4CkAwxJZGaI2JuHKR56azpB3SGU"; // When not provided in authUrl, a default will be used.
+    // const ably = new window.Ably.Realtime.Promise({ authUrl: `/api/ably-token-request?clientId=${optionalClientId}` });
+    // const channel = ably.channels.get("proxy-reverse");
+
+    // console.log('@@@@@@@ WEB SOCKET @@@@@@@@@@@@@@@@@@@')
+  //create websocket
+
+    this.wsServerForControll = channel
+  // this.wsServerForControll = new WebSocketServer({
+  //   httpServer: this.httpServer,
+  //   autoAcceptConnections: false
+  // });
+
+    // serverless(this.wsServerForControll);
+};
+
+wst_server_reverse.prototype.start = function(event, context, port = 5000) {
+
+
+  if (https_flag == "true")
+    console.log("[SYSTEM] - WS Reverse Tunnel Server starting on: wss://localhost:" + port + " - CERT: \n" + this.s4t_cert);
+  else
+    console.log("[SYSTEM] - WS Reverse Tunnel Server starting on: ws://localhost:" + port);
+
+  // console.log('https_flag ===============================', https_flag)
+
+
+  //Activate HTTP/S server
+  // this.httpServer.listen(port, function() {
+  //   console.log("[SYSTEM] - WS Reverse Tunnel Server is listening...");
+  // });
+
+    this.wsServerForControll.subscribe((msg) => {
+        console.log("STUN Ably message received", msg);
+        // document.getElementById("response").innerHTML += "<br />" + JSON.stringify(msg);
+    });
+
+  this.wsServerForControll.on('request', (function(_this) {
+    return function(request){
+
+        console.log('##################')
+      //Create one TCP server for each client WebSocketRequest
+      request.tcpServer = new net.createServer();
+
+      var uri = url.parse(request.httpRequest.url, true);
+
+      var src_address = request.httpRequest.client._peername.address.split(":")[3];
+
+    if (uri.query.dst != undefined && !isReversePort){
+
+        var remoteAddr = uri.query.dst;
+        var client_uuid = uri.query.uuid;
+        ref1 = remoteAddr.split(":");
+        var portTcp = ref1[1];
+        
+        if(client_uuid != undefined){
+            isReversePort = true
+            console.log("[SYSTEM] WebSocket creation towards " + src_address + " on port " + portTcp + " from client " + client_uuid);
+        }
+        else{
+            isReversePort = true
+            console.log("[SYSTEM] WebSocket creation towards " + src_address + " on port " + portTcp );
+        }
+
+        if(allow_list_file != undefined ){
+            if(client_uuid != undefined){
+                
+                var fs = require('fs');
+
+                try{
+                    // allowlist loading from file
+                    allow_list = JSON.parse(fs.readFileSync(allow_list_file));
+                    //console.log(allow_list);
+                    }catch (err) {
+                    // handle the error safely
+                    console.log("[SYSTEM] --> ERROR: " + err);
+                    process.exit(1);
+                }
+                
+                var c =  allow_list.filter(it => it.client === client_uuid);
+                if (c.length > 0){
+                    console.log("[SYSTEM] --> Client " + client_uuid + " found in the allowlist as " + JSON.stringify(c));
+                    var p = c.filter(it => it.port === portTcp);
+                }
+                else
+                    console.log("[SYSTEM] --> Client " + client_uuid + " not found in the allowlist");
+                    
+                if(p != undefined && p.length > 0 && p[0].port == portTcp){
+                    console.log("[SYSTEM] --> Port is allowed: " + portTcp);
+                    request.tcpServer.listen(portTcp);
+                    console.log("[SYSTEM] --> TCP server is listening on port " + portTcp);
+
+                    request.wsConnectionForControll = request.accept('tunnel-protocol', request.origin);
+                    console.log("[SYSTEM] --> WS connection created");
+                    
+                    request.wsConnectionForControll.on('close', function(reasonCode, description) {
+                    isReversePort = false
+                    console.log("[SYSTEM] - WebSocket Controll Peer " + request.wsConnectionForControll.remoteAddress + " disconnected - Reason: ["+reasonCode+"] " + description);
+                    console.log("[SYSTEM] --> Close websocket server on port " + portTcp);
+                    request.tcpServer.close();
+                    });
+                    
+                }
+                else{
+                    console.log("Port is not allowed: " + portTcp + " so the connection is not authorized");
+                    //reject the request
+                    request.reject(401, "Request unauthorized!");
+                    console.log("[SYSTEM] --> WS connection closed");                    
+                }
+            }
+            else{
+                    console.log("Client is not specified so the connection is not authorized.");
+                    //reject the request
+                    request.reject(401, "Request unauthorized!");
+                    console.log("[SYSTEM] --> WS connection closed");                    
+                
+            }
+        }
+        else{
+            // request.tcpServer.listen(portTcp);
+            console.log("[SYSTEM] --> TCP server is listening on port " + portTcp);
+
+            request.wsConnectionForControll = request.accept('tunnel-protocol', request.origin);
+            console.log("[SYSTEM] --> WS connection created");
+            
+            request.wsConnectionForControll.on('close', function(reasonCode, description) {
+            isReversePort = false
+            console.log("[SYSTEM] - WebSocket Controll Peer " + request.wsConnectionForControll.remoteAddress + " disconnected - Reason: ["+reasonCode+"] " + description);
+            console.log("[SYSTEM] --> Close websocket server on port " + portTcp);
+            request.tcpServer.close();
+            });
+        }
+      }
+      else{
+        //REQUEST FOR WS USED FOR DATA
+        console.log("[SYSTEM] --> WebSocket Request for Data");
+        newWSTCP_DATA.emit('created', request);
+      }
+
+      //Manage TCP error events
+      request.tcpServer.on('error', function(message) {
+        if(message.code == "EADDRINUSE"){
+          console.log("[SYSTEM] - Error - Port " + message.port + " already used: connection aborted.");
+          request.wsConnectionForControll.close();
+        }else
+          console.log("[SYSTEM] - Error establishing TCP connection: " + message);
+          
+      });
+
+      //Manage TCP Connection event
+      request.tcpServer.on('connection', (function(_this){
+        
+        return function(tcpConn){
+
+          tcpConn.wsConnection;
+          
+          //Putting in pause the tcp connection waiting the new socket WS Socket for data
+          tcpConn.pause();
+          var idConnection = uuid.v4();
+          var msgForNewConnection = "NC:"+idConnection;
+          
+          request.wsConnectionForControll.sendUTF(msgForNewConnection);
+          
+          var EventManager = (function(_this){
+
+            return function(request){
+
+              try{
+
+                var uri = url.parse(request.httpRequest.url, true);
+                
+                if(idConnection == uri.query.id){
+
+                  //tcpConn.wsConnection = wsTCP;
+                  tcpConn.wsConnection = request.accept('tunnel-protocol', request.origin);
+                  bindSockets(tcpConn.wsConnection, tcpConn);
+                  //DEBUG console.log("Bind ws tcp");
+
+                  //Resuming of the tcp connection after WS Socket is just created
+                  tcpConn.resume();
+                  //DEBUG console.log("TCP RESUME");
+                  newWSTCP_DATA.removeListener('created', EventManager);
+                }
+
+              }catch (err) {
+                // handle the error
+                console.log("[SYSTEM] --> ERROR: " + err);
+                request.tcpServer.close();
+                newWSTCP_DATA.removeListener('created', EventManager);
+              }
+              
+            }
+
+          })(this)
+  
+          newWSTCP_DATA.on('created', EventManager);
+
+        }
+        
+      })(_this));
+
+    }
+  })(this));
+};
+
+
+module.exports = wst_server_reverse;

@@ -119,3 +119,6 @@ dist
 .tern-port
 
 .vercel
+
+# Local Netlify folder
+.netlify

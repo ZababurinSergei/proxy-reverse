@@ -17,14 +17,16 @@
 //###############################################################################
 
 
-
+// server_reverse : require("./server_reverse-lambda"),
+// client_reverse : require("./client_reverse-lambda")
 (function() {
   module.exports = {
     server: require("./server"),
     client: require("./client"),
     server_reverse : require("./server_reverse"),
-    client_reverse : require("./client_reverse")
+    client_reverse : require("./client_reverse"),
+    server_reverse_lambda : require("./server_reverse-lambda"),
+    client_reverse_lambda : require("./client_reverse-lambda")
   };
-
 }).call(this);
 

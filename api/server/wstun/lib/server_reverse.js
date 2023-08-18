@@ -58,7 +58,7 @@ wst_server_reverse = function(options) {
     console.log("[SYSTEM] - WS Reverse Tunnel Server starting...");
 
 
-  if(https_flag == "true"){
+  if(https_flag == "true") {
     
     //HTTPS
     console.log("[SYSTEM] - WS Reverse Tunnel Server over HTTPS.");
@@ -138,7 +138,7 @@ wst_server_reverse = function(options) {
     });
     
 
-  }else{
+  } else {
       
     //HTTP
     console.log("[SYSTEM] - WS Reverse Tunnel Server over HTTP.");
@@ -214,7 +214,7 @@ wst_server_reverse.prototype.start = function(port) {
   });
 
 
-  this.wsServerForControll.on('request', (function(_this){
+  this.wsServerForControll.on('request', (function(_this) {
     return function(request){
 
       //Create one TCP server for each client WebSocketRequest

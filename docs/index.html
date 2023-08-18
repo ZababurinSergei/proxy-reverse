@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Tunnel Reverse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+  <script src="./script.mjs" type="module" defer></script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body id="response">
+<button id="back" class="button">CONNECT TO BACK</button>
+<!--<div>-->
+<!--  <fieldset>-->
+<!--    <legend>WS 💚 CONNECT</legend>-->
+<!--    <img href="https://i.imgur.com/xeqHFPH.jpg" src="https://i.imgur.com/xeqHFPH.jpg">-->
+<!--    <span>Await client connections...</span>-->
+<!--  </fieldset>http://localhost:8888/-->
+<!--</div>-->
+<!--<div id="response"></div>-->
+</body>
+<style>
+    fieldset {
+    display: flex;
+    flex-direction: column;
+    border-radius: 50%;
+    width: 20vw;
+    height: 20vw;
+    justify-content: center;
+    margin: auto;
+}
+
+img {
+    width: 40%;
+    align-self: center;
+}
+
+span {
+    text-align: center;
+    padding: 1vw;
+    font-size: 2vw;
+}
+</style>
+<script type="module">
+        document.body.querySelector('#back').addEventListener('click', async (event) => {
+            const optionalClientId = "mCWdHA.ttJ1BA:Gm7qL08ea0E8XFuY4CkAwxJZGaI2JuHKR56azpB3SGU"; // When not provided in authUrl, a default will be used.
+            const server = new window.Ably.Realtime.Promise({ authUrl: `/api/server` });
+            const channel = server.channels.get("proxy-reverse");
+
+            await channel.subscribe((msg) => {
+                console.log("SERVER SEND", msg);
+                // document.getElementById("response").innerHTML += "<br />" + JSON.stringify(msg);
+            });
+
+            // console.log('dddddddddddddddddddddddddd', event)
+        })
+</script>
+</html>
